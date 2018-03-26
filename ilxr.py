@@ -20,38 +20,19 @@ except:
 """
     sys.exit(2)
 
-version = '0.8'
-USE_EXT = ('mp4', 'm4v', 'mkv')
-exc_file = 'ilxr_excludes.txt'
+# my version number
+version = '1.1'
 
+# only work on following extensions
+USE_EXT = ('mp4', 'm4v', 'mkv')
+
+# set work variable
 i = imdb.IMDb()
 
-def get_excludes(path):
-#  print "sys.path is: ", sys.path[0]
-#  print "getcwd is: ", os.getcwd()
-#  print "path is: ", path
-  if sys.path[0] != os.getcwd():
-#    pf = path + '/'
-    pf = sys.path[0] + '/'
-  else:
-    pf = ''
-  efile = sys.path[0]+'/'+exc_file
-  if os.path.exists(efile):
-    print "Using excludes file: ", efile
-    if path == '.':
-      data = [path + '/' + line.strip() for line in open(efile, 'r')]
-    else:
-      data = [pf + line.strip() for line in open(efile, 'r')]
-  else:
-    print "Excludes file not found."
-    data = ''
-  return data
 
-
+# get list of directories and files
 def get_titles (path):
   titleslist = []
-  xlist = get_excludes(path)
-  print "Excluding: ", xlist
   for dirName, subdirList, fileList in os.walk(path):
     print('directory: %s' % dirName)
     for fname in fileList:
@@ -63,19 +44,19 @@ def get_titles (path):
         else:
            newname = name
         if ext not in USE_EXT:
-                continue
+           continue
         fxml = name + ".xml"
         fjpg = name + ".jpg"
         dirPath = dirName.rsplit(path,1)[1]
-#        print "dirPath: ", dirPath
-#        print "dirName: ", dirName
-        if dirName not in xlist:
-#          print dirName, fname, newname, fxml, fjpg, dirPath
-          titleslist.append((dirName, fname, newname, fxml, fjpg, dirPath))
+#        if args.debug: print "*DEBUG* dirs/files: ", dirName, fname, newname, fxml, fjpg, dirPath
+        titleslist.append((dirName, fname, newname, fxml, fjpg, dirPath))
     titleslist.sort()
+  if args.debug: print "*DEBUG* dirs/files: ", titleslist
   return titleslist
 
 
+# option to download image and resize to width
+# must have imagemagick installed
 def jpgdownload (mid,jf):
     j = i.get_movie(mid)
     try:
@@ -88,8 +69,8 @@ def jpgdownload (mid,jf):
         wFile.close()
         localFile.close()
         print "...downloading jpg"
-        print "...resizing jpg"
-        cmd = ["convert", jfile, "-resize", "62400@", jfile]
+        print "...resizing jpg to width of", args.jpg
+        cmd = ["convert", jfile, "-resize", args.jpg, jfile]
         p = Popen( cmd, stdout=PIPE, stdin=PIPE)
         (stdout, stderr) = p.communicate()
         if stderr is not None:
@@ -99,8 +80,9 @@ def jpgdownload (mid,jf):
     except:
       print "error downloading cover"
       pass
-    
 
+   
+# retrieve movie or show id
 def get_imdb_id (qid):
     s_result = i.search_movie(qid)
     id = 0
@@ -119,6 +101,7 @@ def get_imdb_id (qid):
     return m1
 
 
+# if show, retrieve season number
 def get_series_imdb_id (sid):
     m = i.get_movie(sid)
     m['kind']
@@ -139,6 +122,7 @@ def get_series_imdb_id (sid):
     return mm
 
 
+# retrieve list of episodes for season
 def list_series_imdb_id (mm,ef):
     id = 1
     print "Number of episodes: ", len(mm)
@@ -165,6 +149,7 @@ def list_series_imdb_id (mm,ef):
     return m2
 
 
+# write xml file to disk
 def writeXMLoutput (xml_dict,fil):
     myFile = open(fil, 'w')
     myFile.write(xml_dict['vid_beg']+'\n')
@@ -180,6 +165,7 @@ def writeXMLoutput (xml_dict,fil):
     myFile.close()
 
 
+# show xml file on screen
 def showXMLoutput (xml_dict,fil):
     print "--------------------"
     print "should write to: ", fil
@@ -196,6 +182,7 @@ def showXMLoutput (xml_dict,fil):
     print xml_dict['vid_end']
 
 
+# create xml structure
 def create_xml (imdb_id):
     xml_dict = {'vid_beg':'<video>'}
     xml_dict['title'] = '<title></title>'
@@ -267,7 +254,9 @@ def create_xml (imdb_id):
     return xml_dict  
 
 
+# make it work
 def pullittogether(mmm,l):
+    if args.debug: print "*DEBUG* p.i.t. 'begin': ", mmm
     if args.series:
       if mmm is None:
         sid = get_imdb_id(args.series)
@@ -290,6 +279,7 @@ def pullittogether(mmm,l):
       if args.jpg:
         jfile = l[0]+'/'+l[4]
         jpgdownload(imdb_id,jfile)
+    if args.debug: print "*DEBUG* p.i.t. 'end': ", mmm
     return mmm
 
 
@@ -298,14 +288,13 @@ def main():
     print "directory to scan is: ", args.dirfile
     thelist = get_titles(args.dirfile)
     for l in thelist:
+       if args.debug: print "*DEBUG* list: ", l
        print "--------------------"
        print l[2]
        print "--------------------"
        xfile = l[0]+'/'+l[3]
        if os.path.isfile(xfile):
-         if args.new:
-           continue
-         else:
+         if args.redo:
            with open(xfile) as f: 
              print f.read()
            print "--------------------"
@@ -317,22 +306,26 @@ def main():
              continue
            else:
              continue
-       pullittogether(mmm,l)
+         else:
+           continue
+       mmm = pullittogether(mmm,l)
 
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='Create and maintain xlm files for Roksbox.', epilog='examples: ilxr.py "DIR", ilxr.py -s "Archer" "DIR"')
+    parser = argparse.ArgumentParser(description='Create and maintain individual xlm files for Roksbox.', epilog='examples: %(prog)s "DIR", %(prog)s -s "Archer" "DIR/Season"')
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s version '+version)
     parser.add_argument('dirfile', metavar='DIR', type=str, nargs='?', help='quoted movie directory', default='.')
     parser.add_argument('-x','--xml', action='store', type=str, help='[write|show|both] xml files', choices=['write','show','both'], default='write')
-    parser.add_argument('-n','--new', action='store_true', help='only do movies without xml files')
-    parser.add_argument('-j','--jpg', action='store_true', help='download jpg poster of video and resize with convert')
-    parser.add_argument('-s','--series', action='store', help='quoted series name')
+    parser.add_argument('-r','--redo', action='store_true', help='do all movies (defaults to movies without xml files)')
+    parser.add_argument('-j','--jpg', action='store', help='download jpg poster and resize with convert (-j 200)')
+    parser.add_argument('-s','--series', action='store', help='quoted series name (-s "Archer")')
     parser.add_argument('-l','--length', action='store', help='overide imdb with "quoted" length')
     parser.add_argument('-g','--genre', action='store', help='overide imdb with "quoted" genre')
     parser.add_argument('-y','--year', action='store', help='overide imdb with "quoted" year')
     parser.add_argument('-m','--mpaa', action='store', help='overide imdb with "quoted" mpaa')
     parser.add_argument('-a','--actors', action='store', help='overide imdb with "quoted" actors')
+    parser.add_argument('-d','--debug', action='store_true', help='print variables for debugging')
     args = parser.parse_args()
 
     main()
