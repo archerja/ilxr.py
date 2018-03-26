@@ -4,23 +4,13 @@ import os
 import sys
 import argparse
 import urllib.request, urllib.parse, urllib.error
+import shutil
 import unicodedata
 from subprocess import Popen, PIPE
 import imdb
-#try:
-#    import imdb
-#except:
-#    print("""
-#
-#* IMDbPY needed 
-#
-#please install python-imdbpy
-#
-#""")
-#    sys.exit(2)
 
 # my version number
-version = '1.4'
+version = '1.5'
 
 # only work on following extensions
 USE_EXT = ('mp4', 'm4v', 'mkv')
@@ -42,19 +32,22 @@ def get_titles (path):
   for dirName, subdirList, fileList in os.walk(path):
     print(('directory: %s' % dirName))
     for fname in fileList:
+        if args.debug: print("--------------------"); print("*DEBUG* fname: ", fname)
         f = fname.rsplit('.',1)
         name = f[0]
-        ext = f[1]
+        try:
+          ext = f[1]
+        except:
+          continue  
+        if ext not in USE_EXT:
+           continue
         if "]" in name:
            newname = name.split("] ",1)[1]
         else:
            newname = name
-        if ext not in USE_EXT:
-           continue
         fxml = name + ".xml"
         fjpg = name + ".jpg"
         dirPath = dirName.rsplit(path,1)[1]
-#        if args.debug: print "*DEBUG* dirs/files: ", dirName, fname, newname, fxml, fjpg, dirPath
         titleslist.append((dirName, fname, newname, fxml, fjpg, dirPath))
     titleslist.sort()
   if args.debug: print("--------------------"); print("*DEBUG* dirs/files: ", titleslist)
@@ -68,19 +61,23 @@ def jpgdownload (mid,jf):
     try:
       url = j['full-size cover url']
       if url is not None:
-        wFile = urllib.request.urlopen(url)
-        jfile = str(jf).encode('ascii','ignore')
-        localFile = open(jfile,'w')
-        localFile.write(wFile.read())
-        wFile.close()
-        localFile.close()
-        print("...downloading jpg")
-        print("...resizing jpg to width of", args.jpg)
-        cmd = ["convert", jfile, "-resize", args.jpg, jfile]
-        p = Popen( cmd, stdout=PIPE, stdin=PIPE)
-        (stdout, stderr) = p.communicate()
-        if stderr is not None:
-          print(stderr)
+        if args.debug: print("--------------------"); print("*DEBUG* cover url: ", j['full-size cover url'])
+        urlfix = url.split('@')[0]+"@.jpg"
+        if args.debug: print("--------------------"); print("*DEBUG* urlfix: ", urlfix)
+        jfile = str(jf)
+        if args.debug: print("--------------------"); print("*DEBUG* jfile: ", jfile); print("--------------------")
+        if args.xml == 'show':
+          print(url)
+        else:
+          print("...downloading jpg")
+          with urllib.request.urlopen(urlfix) as response, open(jfile, 'wb') as out_file:
+              shutil.copyfileobj(response, out_file)
+          print("...resizing jpg to width of", args.jpg)
+          cmd = ["convert", jfile, "-resize", args.jpg, jfile]
+          p = Popen( cmd, stdout=PIPE, stdin=PIPE)
+          (stdout, stderr) = p.communicate()
+          if stderr is not None:
+            print(stderr)
       else:
         print("no full-size cover")
     except:
@@ -305,19 +302,26 @@ def pullittogether(mmm,l):
 def main():
     mmm = None
     print("directory to scan is: ", args.dirfile)
-    thelist = get_titles(args.dirfile)
+    if args.dirfile[-1:] == "/":
+       dirlist = args.dirfile[0:-1]
+       print("removed last /, now: ", dirlist)
+    if args.dirfile == ".":
+       dirlist = os.getcwd()
+       print("changed . to: ", dirlist)
+    thelist = get_titles(dirlist)
     for l in thelist:
        if args.debug: print("--------------------"); print("*DEBUG* current working list: ", l)
        print("--------------------")
        print(l[2])
        print("--------------------")
        xfile = l[0]+'/'+l[3]
+       if args.debug: print("*DEBUG* xfile: ", xfile); print("--------------------")
        if os.path.isfile(xfile):
          if args.redo:
            with open(xfile) as f: 
              print(f.read())
            print("--------------------")
-           response = input('Change XML file? Enter y to change, or q to quit, or enter to continue without changing.'  )
+           response = input('Change XML file? Enter y to change, or q to quit, or enter to continue without changing. '  )
            if "q" in response:
              sys.exit(0)
            elif "y" in response:

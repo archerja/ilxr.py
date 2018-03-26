@@ -1,7 +1,7 @@
 ilxr.py
 =======
 
-Latest version = 1.4
+Latest version = 1.5
 
 **Python 3 is now required!**
 
