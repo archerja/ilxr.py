@@ -4,6 +4,7 @@ import os
 import sys
 import argparse
 import urllib
+import unicodedata
 from subprocess import Popen, PIPE
 
 try:
@@ -21,7 +22,7 @@ except:
     sys.exit(2)
 
 # my version number
-version = '1.1'
+version = '1.2'
 
 # only work on following extensions
 USE_EXT = ('mp4', 'm4v', 'mkv')
@@ -29,6 +30,10 @@ USE_EXT = ('mp4', 'm4v', 'mkv')
 # set work variable
 i = imdb.IMDb()
 
+# remove foriegn characters
+def nice(s):
+  s = unicode(s)
+  return ''.join((c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn'))
 
 # get list of directories and files
 def get_titles (path):
@@ -198,6 +203,7 @@ def create_xml (imdb_id):
     if imdb_id is not None:
         m = i.get_movie(imdb_id)
         xml_dict['title'] = "<title>"+m['title']+"</title>"
+        xml_dict['title'] = nice(xml_dict['title'])
         try:
           if args.year:
             xml_dict['year'] = "<year>"+args.year+"</year>"
@@ -223,6 +229,7 @@ def create_xml (imdb_id):
           pass
         try:
           xml_dict['director'] = "<director>%s</director>" % ', '.join([director.get('name') for director in (m.get('director') or [])])
+	  xml_dict['director'] = nice(xml_dict['director'])
         except:
           pass
         try:
@@ -233,12 +240,14 @@ def create_xml (imdb_id):
             for actor in [0,1,2]:
               actorList = actorList+str(m['actors'][actor])+', '
             xml_dict['actors'] = "<actors>"+actorList[0:-2]+"</actors>"
+            xml_dict['actors'] = nice(xml_dict['actors'])
         except:
           pass
         try:
           plot = m['plot outline'].replace(u' \xbb', u'').encode()
           plot = plot.replace(' |', '')
           xml_dict['description'] = "<description>"+plot+"</description>"
+          xml_dict['description'] = nice(xml_dict['description'])
         except:
           pass
         try:
@@ -313,7 +322,7 @@ def main():
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser(description='Create and maintain individual xlm files for Roksbox.', epilog='examples: %(prog)s "DIR", %(prog)s -s "Archer" "DIR/Season"')
+    parser = argparse.ArgumentParser(description='Create and maintain individual xml files for Roksbox.', epilog='examples: %(prog)s "DIR", %(prog)s -s "Archer" "DIR/Season"')
     parser.add_argument('-v', '--version', action='version', version='%(prog)s version '+version)
     parser.add_argument('dirfile', metavar='DIR', type=str, nargs='?', help='quoted movie directory', default='.')
     parser.add_argument('-x','--xml', action='store', type=str, help='[write|show|both] xml files', choices=['write','show','both'], default='write')

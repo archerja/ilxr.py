@@ -1,7 +1,7 @@
 ilxr.py
 =======
 
-Latest version = 1.1
+Latest version = 1.2
 
 This python script will search imdb for information and save in a format compatible with [Roksbox](http://wilddtech.com/roksbox/home/).
 
