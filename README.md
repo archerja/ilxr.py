@@ -122,7 +122,7 @@ USE_EXT = ('mp4', 'm4v', 'mkv')
 Author
 ======
 
-Joseph Archer (C) 2014
+Joseph Archer (C) 2015
 
 
 License
