@@ -20,14 +20,38 @@ except:
 """
     sys.exit(2)
 
+version = '0.8'
 USE_EXT = ('mp4', 'm4v', 'mkv')
-version = '0.7'
+exc_file = 'ilxr_excludes.txt'
 
 i = imdb.IMDb()
+
+def get_excludes(path):
+#  print "sys.path is: ", sys.path[0]
+#  print "getcwd is: ", os.getcwd()
+#  print "path is: ", path
+  if sys.path[0] != os.getcwd():
+#    pf = path + '/'
+    pf = sys.path[0] + '/'
+  else:
+    pf = ''
+  efile = sys.path[0]+'/'+exc_file
+  if os.path.exists(efile):
+    print "Using excludes file: ", efile
+    if path == '.':
+      data = [path + '/' + line.strip() for line in open(efile, 'r')]
+    else:
+      data = [pf + line.strip() for line in open(efile, 'r')]
+  else:
+    print "Excludes file not found."
+    data = ''
+  return data
 
 
 def get_titles (path):
   titleslist = []
+  xlist = get_excludes(path)
+  print "Excluding: ", xlist
   for dirName, subdirList, fileList in os.walk(path):
     print('directory: %s' % dirName)
     for fname in fileList:
@@ -43,7 +67,11 @@ def get_titles (path):
         fxml = name + ".xml"
         fjpg = name + ".jpg"
         dirPath = dirName.rsplit(path,1)[1]
-        titleslist.append((dirName, fname, newname, fxml, fjpg, dirPath))
+#        print "dirPath: ", dirPath
+#        print "dirName: ", dirName
+        if dirName not in xlist:
+#          print dirName, fname, newname, fxml, fjpg, dirPath
+          titleslist.append((dirName, fname, newname, fxml, fjpg, dirPath))
     titleslist.sort()
   return titleslist
 
