@@ -10,7 +10,7 @@ from subprocess import Popen, PIPE
 import imdb
 
 # my version number
-version = '1.5'
+version = '1.6'
 
 # only work on following extensions
 USE_EXT = ('mp4', 'm4v', 'mkv')
@@ -28,11 +28,12 @@ def nice(s):
 
 # get list of directories and files
 def get_titles (path):
+  if args.debug: print("--------------------"); print("*DEBUG* section: get_titles"); print("--------------------")
   titleslist = []
   for dirName, subdirList, fileList in os.walk(path):
     print(('directory: %s' % dirName))
     for fname in fileList:
-        if args.debug: print("--------------------"); print("*DEBUG* fname: ", fname)
+#        if args.debug: print("--------------------"); print("*DEBUG* fname: ", fname)
         f = fname.rsplit('.',1)
         name = f[0]
         try:
@@ -57,6 +58,7 @@ def get_titles (path):
 # option to download image and resize to width
 # must have imagemagick installed
 def jpgdownload (mid,jf):
+    if args.debug: print("--------------------"); print("*DEBUG* section: jpgdownload"); print("--------------------")
     j = i.get_movie(mid)
     try:
       url = j['full-size cover url']
@@ -87,6 +89,8 @@ def jpgdownload (mid,jf):
    
 # retrieve movie or show id
 def get_imdb_id (qid):
+    if args.debug: print("--------------------"); print("*DEBUG* section: get_imdb_id"); print("--------------------")
+    if args.debug: print("--------------------"); print("*DEBUG* qid: ", qid); print("--------------------")
     s_result = i.search_movie(qid)
     id = 0
     for movie in s_result:
@@ -106,6 +110,7 @@ def get_imdb_id (qid):
 
 # if show, retrieve season number
 def get_series_imdb_id (sid):
+    if args.debug: print("--------------------"); print("*DEBUG* section: get_series_imdb_id"); print("--------------------")
     m = i.get_movie(sid)
     m['kind']
     i.update(m,'episodes')
@@ -127,6 +132,7 @@ def get_series_imdb_id (sid):
 
 # retrieve list of episodes for season
 def list_series_imdb_id (mm,ef):
+    if args.debug: print("--------------------"); print("*DEBUG* section: list_series_imdb_id"); print("--------------------")
     id = 1
     print("Number of episodes: ", len(mm))
     print()
@@ -154,6 +160,7 @@ def list_series_imdb_id (mm,ef):
 
 # write xml file to disk
 def writeXMLoutput (xml_dict,fil):
+    if args.debug: print("--------------------"); print("*DEBUG* section: writeXMLoutput"); print("--------------------")
     myFile = open(fil, 'w')
     myFile.write(xml_dict['vid_beg']+'\n')
     myFile.write(xml_dict['title']+'\n')
@@ -170,6 +177,7 @@ def writeXMLoutput (xml_dict,fil):
 
 # show xml file on screen
 def showXMLoutput (xml_dict,fil):
+    if args.debug: print("--------------------"); print("*DEBUG* section: showXMLoutput"); print("--------------------")
     print("--------------------")
     print("should write to: ", fil)
     print("--------------------")
@@ -187,6 +195,7 @@ def showXMLoutput (xml_dict,fil):
 
 # create xml structure
 def create_xml (imdb_id):
+    if args.debug: print("--------------------"); print("*DEBUG* section: create_xml"); print("--------------------")
     xml_dict = {'vid_beg':'<video>'}
     xml_dict['title'] = '<title></title>'
     xml_dict['year'] = '<year></year>'
@@ -271,11 +280,13 @@ def create_xml (imdb_id):
 
 # make it work
 def pullittogether(mmm,l):
-    if args.debug: print("*DEBUG* put it together: begin': ", mmm); print("--------------------")
+    if args.debug: print("--------------------"); print("*DEBUG* section: pullittogether"); print("--------------------")
     if args.series:
       if mmm is None:
         sid = get_imdb_id(args.series)
+        if args.debug: print("--------------------"); print("*DEBUG* pit: sid: ", sid)
         mmm = get_series_imdb_id(sid)
+        if args.debug: print("--------------------"); print("*DEBUG* pit: mmm: ", mmm)
       imdb_id = list_series_imdb_id(mmm,l[2])
     else:
       imdb_id = get_imdb_id(l[2])
@@ -295,11 +306,12 @@ def pullittogether(mmm,l):
       if args.jpg:
         jfile = l[0]+'/'+l[4]
         jpgdownload(imdb_id,jfile)
-    if args.debug: print("--------------------"); print("*DEBUG* put it together: end': ", mmm)
+    if args.debug: print("--------------------"); print("*DEBUG* section: pullittogether: end"); print("--------------------")
     return mmm
 
 
 def main():
+    if args.debug: print("--------------------"); print("*DEBUG* section: main"); print("--------------------")
     mmm = None
     print("directory to scan is: ", args.dirfile)
     if args.dirfile[-1:] == "/":
