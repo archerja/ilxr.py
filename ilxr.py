@@ -14,15 +14,13 @@ except:
 
 * IMDbPY needed 
 
-(python-imdbpy from apt-get not working)
-
-(Use dev version from: https://github.com/alberanid/imdbpy)
+please install python-imdbpy
 
 """
     sys.exit(2)
 
 # my version number
-version = '1.2'
+version = '1.3'
 
 # only work on following extensions
 USE_EXT = ('mp4', 'm4v', 'mkv')
@@ -30,10 +28,13 @@ USE_EXT = ('mp4', 'm4v', 'mkv')
 # set work variable
 i = imdb.IMDb()
 
-# remove foriegn characters
+# remove foreign characters
 def nice(s):
-  s = unicode(s)
-  return ''.join((c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn'))
+#  s = unicode(s)
+#  s = s.encode('utf-8').strip()
+  s = s.encode('ascii', 'ignore').decode('ascii')
+#  return ''.join((c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn'))
+  return s
 
 # get list of directories and files
 def get_titles (path):
@@ -95,7 +96,7 @@ def get_imdb_id (qid):
      print str(id)+' - '+movie['long imdb title']
      id = id + 1
     print
-    response = raw_input('Which movie?  Enter the movie id, or s to skip, or q to quit.'  )
+    response = raw_input('Which movie?  Enter the movie id, or s to skip, or q to quit. '  )
     if "q" in response:
      sys.exit(0)
     elif "s" in response:
