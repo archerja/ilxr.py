@@ -1,26 +1,26 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import os
 import sys
 import argparse
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import unicodedata
 from subprocess import Popen, PIPE
-
-try:
-    import imdb
-except:
-    print """
-
-* IMDbPY needed 
-
-please install python-imdbpy
-
-"""
-    sys.exit(2)
+import imdb
+#try:
+#    import imdb
+#except:
+#    print("""
+#
+#* IMDbPY needed 
+#
+#please install python-imdbpy
+#
+#""")
+#    sys.exit(2)
 
 # my version number
-version = '1.3'
+version = '1.4'
 
 # only work on following extensions
 USE_EXT = ('mp4', 'm4v', 'mkv')
@@ -40,7 +40,7 @@ def nice(s):
 def get_titles (path):
   titleslist = []
   for dirName, subdirList, fileList in os.walk(path):
-    print('directory: %s' % dirName)
+    print(('directory: %s' % dirName))
     for fname in fileList:
         f = fname.rsplit('.',1)
         name = f[0]
@@ -57,7 +57,7 @@ def get_titles (path):
 #        if args.debug: print "*DEBUG* dirs/files: ", dirName, fname, newname, fxml, fjpg, dirPath
         titleslist.append((dirName, fname, newname, fxml, fjpg, dirPath))
     titleslist.sort()
-  if args.debug: print "*DEBUG* dirs/files: ", titleslist
+  if args.debug: print("--------------------"); print("*DEBUG* dirs/files: ", titleslist)
   return titleslist
 
 
@@ -68,23 +68,23 @@ def jpgdownload (mid,jf):
     try:
       url = j['full-size cover url']
       if url is not None:
-        wFile = urllib.urlopen(url)
+        wFile = urllib.request.urlopen(url)
         jfile = str(jf).encode('ascii','ignore')
         localFile = open(jfile,'w')
         localFile.write(wFile.read())
         wFile.close()
         localFile.close()
-        print "...downloading jpg"
-        print "...resizing jpg to width of", args.jpg
+        print("...downloading jpg")
+        print("...resizing jpg to width of", args.jpg)
         cmd = ["convert", jfile, "-resize", args.jpg, jfile]
         p = Popen( cmd, stdout=PIPE, stdin=PIPE)
         (stdout, stderr) = p.communicate()
         if stderr is not None:
-          print stderr
+          print(stderr)
       else:
-        print "no full-size cover"
+        print("no full-size cover")
     except:
-      print "error downloading cover"
+      print("error downloading cover")
       pass
 
    
@@ -93,10 +93,10 @@ def get_imdb_id (qid):
     s_result = i.search_movie(qid)
     id = 0
     for movie in s_result:
-     print str(id)+' - '+movie['long imdb title']
+     print(str(id)+' - '+movie['long imdb title'])
      id = id + 1
-    print
-    response = raw_input('Which movie?  Enter the movie id, or s to skip, or q to quit. '  )
+    print()
+    response = input('Which movie?  Enter the movie id, or s to skip, or q to quit. '  )
     if "q" in response:
      sys.exit(0)
     elif "s" in response:
@@ -112,13 +112,13 @@ def get_series_imdb_id (sid):
     m = i.get_movie(sid)
     m['kind']
     i.update(m,'episodes')
-    print
+    print()
     gid = 1
     for s in range(1,len(m['episodes'])+1):
-     print str(gid)+' - Season '+str(s)
+     print(str(gid)+' - Season '+str(s))
      gid = gid + 1
-    print
-    response = raw_input('Which season?  Enter the season id, or s to skip, or q to quit. '  )
+    print()
+    response = input('Which season?  Enter the season id, or s to skip, or q to quit. '  )
     if "q" in response:
      sys.exit(0)
     elif "s" in response:
@@ -131,20 +131,20 @@ def get_series_imdb_id (sid):
 # retrieve list of episodes for season
 def list_series_imdb_id (mm,ef):
     id = 1
-    print "Number of episodes: ", len(mm)
-    print
+    print("Number of episodes: ", len(mm))
+    print()
     for movie in range(1,len(mm)+1):
       try:
-        print str(id)+' - '+mm[int(movie)]['title']
+        print(str(id)+' - '+mm[int(movie)]['title'])
       except:
-        print str(id)+' - unknown'
+        print(str(id)+' - unknown')
         pass
       id = id + 1
-    print
-    print "--------------------"
-    print ef
-    print "--------------------"
-    response = raw_input('Which episode?  Enter the episode id, or s to skip, or q to quit. '  )
+    print()
+    print("--------------------")
+    print(ef)
+    print("--------------------")
+    response = input('Which episode?  Enter the episode id, or s to skip, or q to quit. '  )
     if "q" in response:
      sys.exit(0)
     elif "s" in response:
@@ -173,19 +173,19 @@ def writeXMLoutput (xml_dict,fil):
 
 # show xml file on screen
 def showXMLoutput (xml_dict,fil):
-    print "--------------------"
-    print "should write to: ", fil
-    print "--------------------"
-    print xml_dict['vid_beg']
-    print xml_dict['title']
-    print xml_dict['year']
-    print xml_dict['genre']
-    print xml_dict['mpaa']
-    print xml_dict['director']
-    print xml_dict['actors']
-    print xml_dict['description']
-    print xml_dict['length']
-    print xml_dict['vid_end']
+    print("--------------------")
+    print("should write to: ", fil)
+    print("--------------------")
+    print(xml_dict['vid_beg'])
+    print(xml_dict['title'])
+    print(xml_dict['year'])
+    print(xml_dict['genre'])
+    print(xml_dict['mpaa'])
+    print(xml_dict['director'])
+    print(xml_dict['actors'])
+    print(xml_dict['description'])
+    print(xml_dict['length'])
+    print(xml_dict['vid_end'])
 
 
 # create xml structure
@@ -203,12 +203,14 @@ def create_xml (imdb_id):
 #
     if imdb_id is not None:
         m = i.get_movie(imdb_id)
+        if args.debug: print("--------------------"); print("*DEBUG* xml: title: ", m['title'])
         xml_dict['title'] = "<title>"+m['title']+"</title>"
         xml_dict['title'] = nice(xml_dict['title'])
         try:
           if args.year:
             xml_dict['year'] = "<year>"+args.year+"</year>"
           else:
+            if args.debug: print("--------------------"); print("*DEBUG* xml: year: ", m['year'])
             xml_dict['year'] = "<year>"+str(m['year'])+"</year>"
         except:
           pass
@@ -216,6 +218,7 @@ def create_xml (imdb_id):
           if args.genre:
             xml_dict['genre'] = "<genre>"+args.genre+"</genre>"
           else:
+            if args.debug: print("--------------------"); print("*DEBUG* xml: genre: ", m['genre'])
             xml_dict['genre'] = "<genre>%s</genre>" %', '.join(m.get('genre'))
         except:
           pass
@@ -223,20 +226,23 @@ def create_xml (imdb_id):
           if args.mpaa:
             xml_dict['mpaa'] = "<mpaa>"+args.mpaa+"</mpaa>"
           else:
-            for region in m['certificates']:
-              if region.split(':')[0]=='USA':
-                xml_dict['mpaa'] = "<mpaa>"+region.split(':')[1].encode()+"</mpaa>"
+            if args.debug: print("--------------------"); print("*DEBUG* xml: certificate: ", m['certificate'])
+            for region in m['certificate']:
+              if region.split(':')[0]=='United States':
+                xml_dict['mpaa'] = "<mpaa>"+region.split(':')[1]+"</mpaa>"
         except:
           pass
         try:
+          if args.debug: print("--------------------"); print("*DEBUG* xml: director: ", m['director'])
           xml_dict['director'] = "<director>%s</director>" % ', '.join([director.get('name') for director in (m.get('director') or [])])
-	  xml_dict['director'] = nice(xml_dict['director'])
+          xml_dict['director'] = nice(xml_dict['director'])
         except:
           pass
         try:
           if args.actors:
             xml_dict['actors'] = "<actors>"+str(args.actors)+"</actors>"
           else:
+            if args.debug: print("--------------------"); print("*DEBUG* xml: actors: ", m['actors'])
             actorList = ''
             for actor in [0,1,2]:
               actorList = actorList+str(m['actors'][actor])+', '
@@ -245,9 +251,9 @@ def create_xml (imdb_id):
         except:
           pass
         try:
-          plot = m['plot outline'].replace(u' \xbb', u'').encode()
-          plot = plot.replace(' |', '')
-          xml_dict['description'] = "<description>"+plot+"</description>"
+          if args.debug: print("--------------------"); print("*DEBUG* xml: plot: ", m['plot outline'])
+          plot = m['plot outline']
+          xml_dict['description'] = "<description> %s </description>" % plot
           xml_dict['description'] = nice(xml_dict['description'])
         except:
           pass
@@ -255,18 +261,20 @@ def create_xml (imdb_id):
           if args.length:
             xml_dict['length'] = "<length>"+args.length+"</length>"
           else:
+            if args.debug: print("--------------------"); print("*DEBUG* xml: runtime: ", m['runtime'])
             xml_dict['length'] = "<length>"+m['runtime'][0]+"</length>"
             for utime in m['runtime']:
               if utime.split(':')[0]=='USA':
                 xml_dict['length'] = "<length>"+utime.split(':')[1].encode()+"</length>"
         except:
           pass
+        if args.debug: print("--------------------")
     return xml_dict  
 
 
 # make it work
 def pullittogether(mmm,l):
-    if args.debug: print "*DEBUG* p.i.t. 'begin': ", mmm
+    if args.debug: print("*DEBUG* put it together: begin': ", mmm); print("--------------------")
     if args.series:
       if mmm is None:
         sid = get_imdb_id(args.series)
@@ -275,40 +283,41 @@ def pullittogether(mmm,l):
     else:
       imdb_id = get_imdb_id(l[2])
     if imdb_id is not None:
+      if args.debug: print("--------------------"); print("*DEBUG* pit: imdb_id: ", imdb_id)
       xml_dict = create_xml(imdb_id)
       if args.xml == 'show':
-        print "show xml only"
+        print("show xml only")
         showXMLoutput(xml_dict,l[0]+'/'+l[3])
       elif args.xml == 'write':
-        print "write xml only"
+        print("write xml only")
         writeXMLoutput(xml_dict,l[0]+'/'+l[3])
       else:
-        print "both show and write xml"
+        print("both show and write xml")
         showXMLoutput(xml_dict,l[0]+'/'+l[3])
         writeXMLoutput(xml_dict,l[0]+'/'+l[3])
       if args.jpg:
         jfile = l[0]+'/'+l[4]
         jpgdownload(imdb_id,jfile)
-    if args.debug: print "*DEBUG* p.i.t. 'end': ", mmm
+    if args.debug: print("--------------------"); print("*DEBUG* put it together: end': ", mmm)
     return mmm
 
 
 def main():
     mmm = None
-    print "directory to scan is: ", args.dirfile
+    print("directory to scan is: ", args.dirfile)
     thelist = get_titles(args.dirfile)
     for l in thelist:
-       if args.debug: print "*DEBUG* list: ", l
-       print "--------------------"
-       print l[2]
-       print "--------------------"
+       if args.debug: print("--------------------"); print("*DEBUG* current working list: ", l)
+       print("--------------------")
+       print(l[2])
+       print("--------------------")
        xfile = l[0]+'/'+l[3]
        if os.path.isfile(xfile):
          if args.redo:
            with open(xfile) as f: 
-             print f.read()
-           print "--------------------"
-           response = raw_input('Change XML file? Enter y to change, or q to quit, or enter to continue without changing.'  )
+             print(f.read())
+           print("--------------------")
+           response = input('Change XML file? Enter y to change, or q to quit, or enter to continue without changing.'  )
            if "q" in response:
              sys.exit(0)
            elif "y" in response:
