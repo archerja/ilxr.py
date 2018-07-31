@@ -1,30 +1,30 @@
-"""
-utils module (imdb package).
+# Copyright 2004-2018 Davide Alberani <da@erlug.linux.it>
+#                2009 H. Turgut Uyar <uyar@tekir.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
+"""
 This module provides basic utilities for the imdb package.
-
-Copyright 2004-2018 Davide Alberani <da@erlug.linux.it>
-               2009 H. Turgut Uyar <uyar@tekir.org>
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
 
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
 import re
 import string
+import sys
 from copy import copy, deepcopy
 from functools import total_ordering
 from time import strftime, strptime
@@ -32,6 +32,9 @@ from time import strftime, strptime
 from imdb import VERSION
 from imdb import linguistics
 from imdb._exceptions import IMDbParserError
+
+
+PY2 = sys.hexversion < 0x3000000
 
 
 # Logger for imdb.utils module.
@@ -153,7 +156,7 @@ def analyze_name(name, canonical=None):
     raise an IMDbParserError exception if the name is not valid.
     """
     original_n = name
-    name = name.strip()
+    name = name.split(' aka ')[0].strip()
     res = {}
     imdbIndex = ''
     opi = name.rfind('(')
@@ -312,7 +315,7 @@ def analyze_title(title, canonical=None, canonicalSeries=None, canonicalEpisode=
         canonicalSeries = canonicalEpisode = canonical
     original_t = title
     result = {}
-    title = title.strip()
+    title = title.split(' aka ')[0].strip()
     year = ''
     kind = ''
     imdbIndex = ''
@@ -982,6 +985,7 @@ TAGS_TO_MODIFY = {
     'movie.parents-guide': ('item', True),
     'movie.number-of-votes': ('item', True),
     'movie.soundtrack.item': ('item', True),
+    'movie.soundtrack.item.item': ('item', True),
     'movie.quotes': ('quote', False),
     'movie.quotes.quote': ('line', False),
     'movie.demographic': ('item', True),
@@ -998,7 +1002,8 @@ TAGS_TO_MODIFY = {
 
 
 _valid_chars = string.ascii_lowercase + '-' + string.digits
-_translator = str.maketrans(_valid_chars, _valid_chars)
+_translator = str.maketrans(_valid_chars, _valid_chars) if not PY2 else \
+    string.maketrans(_valid_chars, _valid_chars)
 
 
 def _tagAttr(key, fullpath):
@@ -1016,7 +1021,7 @@ def _tagAttr(key, fullpath):
         attrs['keytype'] = strType
         tagName = str(key)
     else:
-        tagName = str((key, 'ascii', 'ignore'))
+        tagName = key
     if isinstance(key, int):
         attrs['keytype'] = 'int'
     origTagName = tagName
@@ -1097,7 +1102,7 @@ def _seq2xml(seq, _l=None, withRefs=False, modFunct=None,
     else:
         if isinstance(seq, _Container):
             _l.extend(_tag4TON(seq))
-        else:
+        elif seq:
             # Text, ints, floats and the like.
             _l.append(_normalizeValue(seq, withRefs=withRefs,
                                       modFunct=modFunct,
@@ -1129,8 +1134,8 @@ class _Container(object):
     # Function used to compare two instances of this class.
     cmpFunct = None
 
-    # Regular expression used to build the 'full-size (headshot|cover url)'.
-    _re_fullsizeURL = re.compile(r'\._V1\._SX(\d+)_SY(\d+)_')
+    # key that contains the cover/headshot
+    _image_key = None
 
     def __init__(self, myID=None, data=None, notes='',
                  currentRole='', roleID=None, roleIsPerson=False,
@@ -1209,13 +1214,19 @@ class _Container(object):
                 self.currentRole.characterID = roleID
             else:
                 for index, item in enumerate(roleID):
-                    self.__role[index].characterID = item
+                    r = self.__role[index]
+                    if PY2 and isinstance(r, unicode):
+                        continue
+                    r.characterID = item
         else:
             if not isinstance(roleID, (list, tuple)):
                 self.currentRole.personID = roleID
             else:
                 for index, item in enumerate(roleID):
-                    self.__role[index].personID = item
+                    r = self.__role[index]
+                    if PY2 and isinstance(r, unicode):
+                        continue
+                    r.personID = item
 
     roleID = property(_get_roleID, _set_roleID,
                       doc="the characterID or personID of the currentRole object.")
@@ -1254,6 +1265,22 @@ class _Container(object):
 
     def _init(self, **kwds):
         pass
+
+    def get_fullsizeURL(self):
+        """Return the full-size URL for this object."""
+        if not (self._image_key and self._image_key in self.data):
+            return None
+        url = self.data[self._image_key] or ''
+        ext_idx = url.rfind('.')
+        if ext_idx == -1:
+            return url
+        if '@' in url:
+            return url[:url.rindex('@')+1] + url[ext_idx:]
+        else:
+            prev_dot = url[:ext_idx].rfind('.')
+            if prev_dot == -1:
+                return url
+            return url[:prev_dot] + url[ext_idx:]
 
     def reset(self):
         """Reset the object."""

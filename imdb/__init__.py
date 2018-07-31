@@ -1,48 +1,36 @@
+# Copyright 2004-2018 Davide Alberani <da@erlug.linux.it>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
 """
-imdb package.
-
-This package can be used to retrieve information about a movie or
-a person from the IMDb database.
-It can fetch data through different media (e.g.: the IMDb web pages,
-a SQL database, etc.)
-
-Copyright 2004-2018 Davide Alberani <da@erlug.linux.it>
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+This package can be used to retrieve information about a movie or a person
+from the IMDb database. It can fetch data through different media such as
+the IMDb web pages, or a SQL database.
 """
+
+from __future__ import absolute_import, division, print_function, unicode_literals
+
 
 __all__ = ['IMDb', 'IMDbError', 'Movie', 'Person', 'Character', 'Company',
            'available_access_systems']
-__version__ = VERSION = '6.5dev20180314'
+__version__ = VERSION = '6.6dev20180729b'
 
-VERSION_NOTICE = """This version of IMDbPY requires Python 3.
-For a version compatible with Python 2.7, see the imdbpy-legacy branch:
-    https://github.com/alberanid/imdbpy/tree/imdbpy-legacy
 
-Please notice that the imdbpy-legacy branch is mostly unsupported.
-"""
-
-import sys
-
-if sys.hexversion < 0x3000000:
-    print(VERSION_NOTICE)
-    sys.exit(1)
-
-import configparser
 import logging
 import os
+import sys
 from pkgutil import find_loader
 from types import MethodType, FunctionType
 
@@ -50,6 +38,15 @@ import imdb._logging
 from imdb._exceptions import IMDbDataAccessError, IMDbError
 from imdb import Character, Company, Movie, Person
 from imdb.utils import build_company_name, build_name, build_title
+
+
+PY2 = sys.hexversion < 0x3000000
+
+
+if PY2:
+    import ConfigParser as configparser
+else:
+    import configparser
 
 
 _imdb_logger = logging.getLogger('imdbpy')
@@ -98,7 +95,10 @@ class ConfigParserWithCase(configparser.ConfigParser):
 
         *defaults* -- defaults values.
         *confFile* -- the file (or list of files) to parse."""
-        super(configparser.ConfigParser, self).__init__(defaults=defaults)
+        if PY2:
+            configparser.ConfigParser.__init__(self, defaults=defaults)
+        else:
+            super(configparser.ConfigParser, self).__init__(defaults=defaults)
         if confFile is None:
             dotFileName = '.' + confFileName
             # Current and home directory.
@@ -191,10 +191,10 @@ def IMDb(accessSystem=None, *arguments, **keywords):
             logging.config.fileConfig(os.path.expanduser(logCfg))
         except Exception as e:
             _imdb_logger.warn('unable to read logger config: %s' % e)
-    if accessSystem in ('http', 'web', 'html'):
+    if accessSystem in ('http', 'https', 'web', 'html'):
         from .parser.http import IMDbHTTPAccessSystem
         return IMDbHTTPAccessSystem(*arguments, **keywords)
-    if accessSystem in ('s3', 's3dataset'):
+    if accessSystem in ('s3', 's3dataset', 'imdbws'):
         from .parser.s3 import IMDbS3AccessSystem
         return IMDbS3AccessSystem(*arguments, **keywords)
     elif accessSystem in ('sql', 'db', 'database'):

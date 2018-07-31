@@ -10,7 +10,7 @@ from subprocess import Popen, PIPE
 import imdb
 
 # my version number
-version = '1.6'
+version = '1.6.1'
 
 # only work on following extensions
 USE_EXT = ('mp4', 'm4v', 'mkv')
@@ -96,7 +96,6 @@ def get_imdb_id (qid):
     for movie in s_result:
      print(str(id)+' - '+movie['long imdb title'])
      id = id + 1
-    print()
     response = input('Which movie?  Enter the movie id, or s to skip, or q to quit. '  )
     if "q" in response:
      sys.exit(0)
@@ -257,9 +256,9 @@ def create_xml (imdb_id):
         except:
           pass
         try:
-          if args.debug: print("--------------------"); print("*DEBUG* xml: plot: ", m['plot outline'])
-          plot = m['plot outline']
-          xml_dict['description'] = "<description> %s </description>" % plot
+          if args.debug: print("--------------------"); print("*DEBUG* xml: plot: ", m['plot'][0])
+          plot = m['plot'][0].split("::")
+          xml_dict['description'] = "<description> %s </description>" % plot[0]
           xml_dict['description'] = nice(xml_dict['description'])
         except:
           pass

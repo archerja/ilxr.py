@@ -1,37 +1,37 @@
-"""
-parser.http package (imdb package).
+# Copyright 2004-2018 Davide Alberani <da@erlug.linux.it>
+#                2008 H. Turgut Uyar <uyar@tekir.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-This package provides the IMDbHTTPAccessSystem class used to access
-IMDb's data through the web interface.
-the imdb.IMDb function will return an instance of this class when
-called with the 'accessSystem' argument set to "http" or "web"
+"""
+This package provides the IMDbHTTPAccessSystem class used to access IMDb's data
+through the web interface.
+
+The :func:`imdb.IMDb` function will return an instance of this class when
+called with the ``accessSystem`` argument is set to "http" or "web"
 or "html" (this is the default).
-
-Copyright 2004-2018 Davide Alberani <da@erlug.linux.it>
-               2008 H. Turgut Uyar <uyar@tekir.org>
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 """
+
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
 import socket
 import ssl
 from codecs import lookup
-from urllib.parse import quote_plus
-from urllib.request import FancyURLopener
 
+from imdb import PY2
 from imdb import IMDbBase
 from imdb.utils import analyze_title
 from imdb._exceptions import IMDbDataAccessError, IMDbParserError
@@ -46,6 +46,13 @@ from . import (
     searchKeywordParser
 )
 from . import topBottomParser
+
+if PY2:
+    from urllib import quote_plus
+    from urllib2 import HTTPSHandler, ProxyHandler, build_opener
+else:
+    from urllib.parse import quote_plus
+    from urllib.request import HTTPSHandler, ProxyHandler, build_opener
 
 # Logger for miscellaneous functions.
 _aux_logger = logging.getLogger('imdbpy.parser.http.aux')
@@ -109,18 +116,56 @@ class _FakeURLOpener(object):
         return self.headers
 
 
-class IMDbURLopener(FancyURLopener):
+class IMDbHTTPSHandler(HTTPSHandler, object):
+    """HTTPSHandler that ignores the SSL certificate."""
+    def __init__(self, logger=None, *args, **kwds):
+        self._logger = logger
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        super(IMDbHTTPSHandler, self).__init__(context=context)
+
+    def http_error_default(self, url, fp, errcode, errmsg, headers):
+        if errcode == 404:
+            if self._logger:
+                self._logger.warn('404 code returned for %s: %s (headers: %s)',
+                                  url, errmsg, headers)
+            return _FakeURLOpener(url, headers)
+        raise IMDbDataAccessError(
+            {'url': 'http:%s' % url,
+             'errcode': errcode,
+             'errmsg': errmsg,
+             'headers': headers,
+             'error type': 'http_error_default',
+             'proxy': self.get_proxy()}
+        )
+
+    def open_unknown(self, fullurl, data=None):
+        raise IMDbDataAccessError(
+            {'fullurl': fullurl,
+             'data': str(data),
+             'error type': 'open_unknown',
+             'proxy': self.get_proxy()}
+        )
+
+    def open_unknown_proxy(self, proxy, fullurl, data=None):
+        raise IMDbDataAccessError(
+            {'proxy': str(proxy),
+             'fullurl': fullurl,
+             'error type': 'open_unknown_proxy',
+             'data': str(data)}
+        )
+
+
+class IMDbURLopener:
     """Fetch web pages and handle errors."""
     _logger = logging.getLogger('imdbpy.parser.http.urlopener')
 
     def __init__(self, *args, **kwargs):
         self._last_url = ''
-        kwargs['context'] = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
-        FancyURLopener.__init__(self, *args, **kwargs)
-        # Headers to add to every request.
-        # XXX: IMDb's web server doesn't like urllib-based programs,
-        #      so lets fake to be Mozilla.
-        #      Wow!  I'm shocked by my total lack of ethic! <g>
+        self.https_handler = IMDbHTTPSHandler(logger=self._logger)
+        self.proxies = {}
+        self.addheaders = []
         for header in ('User-Agent', 'User-agent', 'user-agent'):
             self.del_header(header)
         self.set_header('User-Agent', 'Mozilla/5.0')
@@ -173,12 +218,24 @@ class IMDbURLopener(FancyURLopener):
         try:
             if size != -1:
                 self.set_header('Range', 'bytes=0-%d' % size)
-            uopener = self.open(url)
-            kwds = {}
-            content = uopener.read(**kwds)
-            self._last_url = uopener.url
+            handlers = []
+            if 'http' in self.proxies:
+                proxy_handler = ProxyHandler({
+                    'http': self.proxies['http'],
+                    'https': self.proxies['http']
+                })
+                handlers.append(proxy_handler)
+            handlers.append(self.https_handler)
+            uopener = build_opener(*handlers)
+            uopener.addheaders = list(self.addheaders)
+            response = uopener.open(url)
+            content = response.read()
+            self._last_url = response.url
             # Maybe the server is so nice to tell us the charset...
-            server_encode = (uopener.info().get_charsets() or [None])[0]
+            if PY2:
+                server_encode = response.headers.getparam('charset') or None
+            else:
+                server_encode = response.headers.get_content_charset(None)
             # Otherwise, look at the content-type HTML meta tag.
             if server_encode is None and content:
                 begin_h = content.find(b'text/html; charset=')
@@ -192,10 +249,9 @@ class IMDbURLopener(FancyURLopener):
                         encode = server_encode
                 except (LookupError, ValueError, TypeError):
                     pass
-            uopener.close()
             if size != -1:
                 self.del_header('Range')
-            self.close()
+            response.close()
         except IOError as e:
             if size != -1:
                 # Ensure that the Range header is removed.
@@ -216,36 +272,6 @@ class IMDbURLopener(FancyURLopener):
         if isinstance(content, str):
             return content
         return str(content, encode, 'replace')
-
-    def http_error_default(self, url, fp, errcode, errmsg, headers):
-        if errcode == 404:
-            self._logger.warn('404 code returned for %s: %s (headers: %s)',
-                              url, errmsg, headers)
-            return _FakeURLOpener(url, headers)
-        raise IMDbDataAccessError(
-            {'url': 'http:%s' % url,
-             'errcode': errcode,
-             'errmsg': errmsg,
-             'headers': headers,
-             'error type': 'http_error_default',
-             'proxy': self.get_proxy()}
-        )
-
-    def open_unknown(self, fullurl, data=None):
-        raise IMDbDataAccessError(
-            {'fullurl': fullurl,
-             'data': str(data),
-             'error type': 'open_unknown',
-             'proxy': self.get_proxy()}
-        )
-
-    def open_unknown_proxy(self, proxy, fullurl, data=None):
-        raise IMDbDataAccessError(
-            {'proxy': str(proxy),
-             'fullurl': fullurl,
-             'error type': 'open_unknown_proxy',
-             'data': str(data)}
-        )
 
 
 class IMDbHTTPAccessSystem(IMDbBase):
@@ -381,6 +407,8 @@ class IMDbHTTPAccessSystem(IMDbBase):
         finally:
             if _noCookies and _cookies:
                 self.urlOpener.set_header('Cookie', _cookies)
+        if PY2 and isinstance(ret, str):
+            ret = ret.decode('utf-8')
         return ret
 
     def _get_search_content(self, kind, ton, results):
@@ -389,7 +417,7 @@ class IMDbHTTPAccessSystem(IMDbBase):
         or 'co' (for companies).
         ton is the title or the name to search.
         results is the maximum number of results to be retrieved."""
-        params = 'q=%s&s=%s&mx=%s' % (quote_plus(ton, safe=''), kind, str(results))
+        params = 'q=%s&s=%s' % (quote_plus(ton, safe=''), kind)
         if kind == 'ep':
             params = params.replace('s=ep&', 's=tt&ttype=ep&', 1)
         cont = self._retrieve(self.urls['find'] % params)

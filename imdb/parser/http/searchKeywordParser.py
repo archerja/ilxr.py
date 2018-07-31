@@ -1,55 +1,49 @@
+# Copyright 2009-2018 Davide Alberani <da@erlug.linux.it>
+#                2018 H. Turgut Uyar <uyar@tekir.org>
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
 """
-parser.http.searchKeywordParser module (imdb package).
+This module provides the classes (and the instances) that are used to parse
+the results of a search for a given keyword.
 
-This module provides the HTMLSearchKeywordParser class (and the
-search_company_parser instance), used to parse the results of a search
-for a given keyword.
-E.g., when searching for the keyword "alabama", the parsed page would be:
-    http://www.imdb.com/find?s=kw;mx=20;q=alabama
+For example, when searching for the keyword "alabama", the parsed page
+would be:
 
-Copyright 2009-2018 Davide Alberani <da@erlug.linux.it>
-
-This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+http://www.imdb.com/find?q=alabama&s=kw
 """
+
+from __future__ import absolute_import, division, print_function, unicode_literals
 
 from imdb.utils import analyze_title
 
+from .piculet import Path, Rule, Rules, reducers
 from .searchMovieParser import DOMHTMLSearchMovieParser
-from .utils import Attribute, Extractor, analyze_imdbid
+from .utils import analyze_imdbid
 
 
 class DOMHTMLSearchKeywordParser(DOMHTMLSearchMovieParser):
-    """Parse the html page that the IMDb web server shows when the
-    "new search system" is used, searching for keywords similar to
-    the one given."""
-    _titleBuilder = lambda self, x: x
-    _linkPrefix = '/keyword/'
+    """A parser for the keyword search page."""
 
-    _attrs = [
-        Attribute(
+    rules = [
+        Rule(
             key='data',
-            multi=True,
-            path="./a[1]/text()"
-        )
-    ]
-
-    extractors = [
-        Extractor(
-            label='search',
-            path="//a[starts-with(@href, '/keyword/')]/..",
-            attrs=_attrs
+            extractor=Path(
+                foreach='//td[@class="result_text"]',
+                path='./a/text()'
+            )
         )
     ]
 
@@ -69,35 +63,45 @@ def custom_analyze_title4kwd(title, yearNote, outline):
 
 
 class DOMHTMLSearchMovieKeywordParser(DOMHTMLSearchMovieParser):
-    """Parse the html page that the IMDb web server shows when the
-    "new search system" is used, searching for movies with the given
-    keyword."""
-    _attrs = [
-        Attribute(
+    """A parser for the movie search by keyword page."""
+
+    rules = [
+        Rule(
             key='data',
-            multi=True,
-            path={
-                'link': "./a[1]/@href",
-                'info': "./a[1]//text()",
-                'ynote': "./span[@class='lister-item-year text-muted unbold']/text()",
-                'outline': "./span[@class='outline']//text()"
-            },
-            postprocess=lambda x: (
-                analyze_imdbid(x.get('link') or ''),
-                custom_analyze_title4kwd(x.get('info') or '',
-                                         x.get('ynote') or '',
-                                         x.get('outline') or '')
+            extractor=Rules(
+                foreach='//h3[@class="lister-item-header"]',
+                rules=[
+                    Rule(
+                        key='link',
+                        extractor=Path('./a/@href', reduce=reducers.first)
+                    ),
+                    Rule(
+                        key='info',
+                        extractor=Path('./a//text()')
+                    ),
+                    Rule(
+                        key='ynote',
+                        extractor=Path('./span[@class="lister-item-year text-muted unbold"]/text()')
+                    ),
+                    Rule(
+                        key='outline',
+                        extractor=Path('./span[@class="outline"]//text()')
+                    )
+                ],
+                transform=lambda x: (
+                    analyze_imdbid(x.get('link')),
+                    custom_analyze_title4kwd(
+                        x.get('info', ''),
+                        x.get('ynote', ''),
+                        x.get('outline', '')
+                    )
+                )
             )
         )
     ]
 
-    extractors = [
-        Extractor(
-            label='search',
-            path="//div[@class='lister-list']//h3//a[starts-with(@href, '/title/tt')]/..",
-            attrs=_attrs
-        )
-    ]
+    def preprocess_string(self, html_string):
+        return html_string.replace(' + >', '>')
 
 
 _OBJECTS = {
